@@ -18,3 +18,11 @@ static ips are required! i have them set to
   * gateway: 192.168.137.1
 
 but, thanks to auto-enumeration, they can be whatever. they just need to be consistent.
+
+
+2023-02-16
+----------
+
+looks like, for `VwOpenCameraByIndex`, the `pUserPointer` element is **NOT ALLOWED TO BE NULL**.
+i'm not sure why this is -- null user data is a pretty normal thing -- but setting it to point
+to something made it stop throwing an error. ¯\_(:/)_/¯
