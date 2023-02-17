@@ -5,6 +5,7 @@
 #include <mutex>
 #include <VwGigE.API.h>
 #include "toojpeg/toojpeg.h"
+#include "ctpl_stl.h"
 #include "error.hpp"
 
 
@@ -14,6 +15,10 @@ using namespace VWSDK;
 #define IMAGE_WIDTH  640
 #define IMAGE_HEIGHT 480
 #define FRAMES 800
+#define WRITE_THREADS 8
+
+
+ctpl::thread_pool write_pool(WRITE_THREADS);
 
 
 #define RELEASE_RESOURCES
@@ -44,7 +49,7 @@ struct Image {
 };
 
 
-void write_image(const char *prefix, Image img) {
+void write_image(int thread, const char *prefix, Image img) {
 	char filename[32];
 	snprintf(filename, 32, "%s%03d.jpg", prefix, img.index);
 	FILE *writer = fopen(filename, "wb");
@@ -52,16 +57,23 @@ void write_image(const char *prefix, Image img) {
 		TooJpeg::writeJpeg(write, writer, img.data, img.w, img.h, true, 90, false, "hello");
 		fclose(writer);
 	}
+	else {
+		fprintf(stderr, "[ERROR] Could not open \"%s\"\n", filename);
+	}
+
+	free(img.data);
 }
+
 
 atomic_long snaps = 0;
 std::queue<Image> images;
+const char *prefix;
 
 void image_callback(OBJECT_INFO *object, IMAGE_INFO *image) {
 	Image img;
 	img.index = snaps;
 	img.ConvertInfo(image);
-	images.push(img);
+	write_pool.push(write_image, prefix, img);
 	printf("pushed %d\n", (unsigned int ) snaps);
 	snaps += 1;
 }
@@ -72,7 +84,7 @@ int main(int argc, char **argv) {
 		fprintf(stderr, "[FATAL] No file prefix specified!\n");
 		exit(1);
 	}
-	const char *prefix = argv[1];
+	prefix = argv[1];
 
 	// create GigE driver
 	VWGIGE_HANDLE driver = NULL;
@@ -128,11 +140,7 @@ int main(int argc, char **argv) {
 
 	// wait for writes to complete
 	printf("Acquiring finished, waiting for filesystem...\n");
-	for (int i=0; i<images.size(); i++) {
-		write_image(prefix, images.front());
-		free(images.front().data);
-		images.pop();
-	}
+	write_pool.stop(true);
 
 	printf("Done!\n");
 	return 0;
