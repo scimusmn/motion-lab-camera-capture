@@ -1,6 +1,10 @@
 #include <stdio.h>
 #include <atomic>
+#include <queue>
+#include <thread>
+#include <mutex>
 #include <VwGigE.API.h>
+#include "toojpeg/toojpeg.h"
 #include "error.hpp"
 
 
@@ -23,23 +27,53 @@ do { \
 } while (0)
 
 
-atomic_int snaps = 0;
-void image_callback(OBJECT_INFO *object, IMAGE_INFO *image)
-{
+static void write(unsigned char byte, void *userdata) { fputc(byte, (FILE*) userdata); }
+
+
+struct Image {
+	unsigned int index;
+	unsigned int w, h;
+	unsigned char *data;
+
+	void ConvertInfo(IMAGE_INFO *info) {
+		w = info->width;
+		h = info->height;
+		data = new unsigned char[w * h * 3];
+		memcpy(data, info->pImage, w * h * 3);
+	}
+};
+
+
+void write_image(const char *prefix, Image img) {
+	char filename[32];
+	snprintf(filename, 32, "%s%03d.jpg", prefix, img.index);
+	FILE *writer = fopen(filename, "wb");
+	if (writer != NULL) {
+		TooJpeg::writeJpeg(write, writer, img.data, img.w, img.h, true, 90, false, "hello");
+		fclose(writer);
+	}
+}
+
+atomic_long snaps = 0;
+std::queue<Image> images;
+
+void image_callback(OBJECT_INFO *object, IMAGE_INFO *image) {
+	Image img;
+	img.index = snaps;
+	img.ConvertInfo(image);
+	images.push(img);
+	printf("pushed %d\n", (unsigned int ) snaps);
 	snaps += 1;
 }
 
 
-void configure_camera(VWGIGE_HANDLE driver, HCAMERA camera)
-{
-	RESULT result;
+int main(int argc, char **argv) {
+	if (argc < 2) {
+		fprintf(stderr, "[FATAL] No file prefix specified!\n");
+		exit(1);
+	}
+	const char *prefix = argv[1];
 
-}
-
-
-
-int main()
-{
 	// create GigE driver
 	VWGIGE_HANDLE driver = NULL;
 	RESULT result = OpenVwGigE(&driver);
@@ -56,18 +90,6 @@ int main()
 		RELEASE_RESOURCES;
 		exit(1);
 	}
-
-	// get info
-	CAMERA_INFO_STRUCT camera_info;
-	result = VwDiscoveryCameraInfo(driver, 0, &camera_info);
-	CHECK_ERROR(result, "get camera info");
-	printf("name: %s\nvendor: %s\nmodel: %s\nip: %s\nmac: %s\n\n",
-		camera_info.name,
-		camera_info.vendor,
-		camera_info.model,
-		camera_info.ip,
-		camera_info.mac
-	);
 
 	// open camera
 	HCAMERA camera = NULL;
@@ -102,9 +124,16 @@ int main()
 	result = CameraGrab(camera);
 	CHECK_ERROR(result, "begin acquiring images");
 	while(snaps < FRAMES) { /* wait for frames */ }
-
-	// clean up
 	RELEASE_RESOURCES;
+
+	// wait for writes to complete
+	printf("Acquiring finished, waiting for filesystem...\n");
+	for (int i=0; i<images.size(); i++) {
+		write_image(prefix, images.front());
+		free(images.front().data);
+		images.pop();
+	}
+
 	printf("Done!\n");
 	return 0;
 }
