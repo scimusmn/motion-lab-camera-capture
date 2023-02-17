@@ -70,6 +70,7 @@ std::queue<Image> images;
 const char *prefix;
 
 void image_callback(OBJECT_INFO *object, IMAGE_INFO *image) {
+	if (snaps >= FRAMES) { return; }
 	Image img;
 	img.index = snaps;
 	img.ConvertInfo(image);
