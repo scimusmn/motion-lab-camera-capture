@@ -25,4 +25,9 @@ but, thanks to auto-enumeration, they can be whatever. they just need to be cons
 
 looks like, for `VwOpenCameraByIndex`, the `pUserPointer` element is **NOT ALLOWED TO BE NULL**.
 i'm not sure why this is -- null user data is a pretty normal thing -- but setting it to point
-to something made it stop throwing an error. ¯\_(:/)_/¯
+to something made it stop throwing an error. Oh well.
+
+---
+
+CameraSnap doesn't work very well -- it can't grab more than 255 frames before it just hangs. Better to use
+CameraGrab and count how many have come in.
