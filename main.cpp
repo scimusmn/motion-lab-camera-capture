@@ -2,6 +2,7 @@
 #include <atomic>
 #include <queue>
 #include <thread>
+#include <chrono>
 #include <mutex>
 #include <VwGigE.API.h>
 #include "toojpeg/toojpeg.h"
@@ -10,6 +11,7 @@
 
 
 using namespace VWSDK;
+using namespace std::chrono_literals;
 
 
 #define IMAGE_WIDTH  640
@@ -103,7 +105,15 @@ int main(int argc, char **argv) {
 	// grab images
 	result = CameraGrab(camera);
 	CHECK_ERROR(result, "begin acquiring images");
-	while(frame_count < FRAME_COUNT) { /* wait for frames */ }
+	std::this_thread::sleep_for(5s);
+	if (frame_count < 50) {
+		// some sort of communication error has occurred
+		fprintf(stderr, "!!! FAILED TO COMMUNICATE WITH CAMERA !!!\n");
+		write_pool.stop(false);
+		RELEASE_RESOURCES; // release camera & gigE driver
+		return 1;
+	}
+	while (frame_count < FRAME_COUNT) {}
 	RELEASE_RESOURCES; // release camera & gigE driver
 
 	// wait for writes to complete
