@@ -7,3 +7,6 @@ find_package(VIS_64 REQUIRED)
 add_executable(camera-capture main.cpp error.cpp toojpeg/toojpeg.cpp)
 target_include_directories(camera-capture PUBLIC ${VIS_INCLUDE_DIR})
 target_link_libraries(camera-capture PUBLIC ${VIS_GIGE_LIB})
+
+message(${VIS_INCLUDE_DIR})
+message(${VIS_GIGE_LIB})

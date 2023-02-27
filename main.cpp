@@ -106,6 +106,8 @@ int main(int argc, char **argv) {
 	result = CameraGrab(camera);
 	CHECK_ERROR(result, "begin acquiring images");
 	std::this_thread::sleep_for(5s);
+	// communication errors usually produce either no frames or ~10 frames of output, so
+	// we can identify them by waiting for a bit and checking our count
 	if (frame_count < 50) {
 		// some sort of communication error has occurred
 		fprintf(stderr, "!!! FAILED TO COMMUNICATE WITH CAMERA !!!\n");
